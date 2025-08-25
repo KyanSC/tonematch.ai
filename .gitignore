@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+.next.static/
+
+# builds
+dist/
+build/
+coverage/
+
+# env files
+.env
+.env.*
+!.env.example
+
+# vercel / tools
+.vercel/
+.turbo/
+.pnpm-store/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+.history/
