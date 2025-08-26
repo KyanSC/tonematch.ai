@@ -23,6 +23,11 @@ interface AdaptToneRequest {
       tone: string
     }
   }
+  originalSectionProfile?: {
+    distortion?: "clean" | "edge" | "crunch" | "high-gain"
+    confidence?: number
+    evidence_phrases?: string[]
+  }
   guitarLabel: string
   ampLabel: string
   features?: {
@@ -112,11 +117,19 @@ export async function POST(request: NextRequest) {
 Non-negotiables
 - Do NOT mirror the original numbers. Compute changes from concrete deltas (pickup type/output/position, guitar build/scale, amp family voicing, available controls). If no delta warrants a change for a knob, KEEP the original numeric value.
 - Output ONLY JSON matching our schema. Include ONLY knobs the player actually has (gain/bass/mid/treble; presence only if available; reverb only if available). Omit unknowns instead of guessing. Integers 0–10.
-- Hard rule: if ORIGINAL gain = 0 (clean), adapted amp_settings.gain MUST be 0.
+- Only set gain=0 if ORIGINAL reported gain=0 AND originalSectionProfile.distortion === "clean". Otherwise, compute gain normally from gear deltas.
 - Technique fidelity: you will receive \`originalTechnique\` (bullets from research). Treat these as ground truth for how the guitarist plays this section (e.g., "fingerstyle, no pick", "Strat position 2/4"). **Never contradict them.**
 
+COIL-SPLIT RULES (CRITICAL):
+- ONLY use coil-split when the ORIGINAL guitar has SINGLE COIL pickups and your guitar has HUMBUCKERS
+- If both original and your guitar have humbuckers, DO NOT coil-split - use the full humbucker
+- If both original and your guitar have single coils, DO NOT coil-split
+- Coil-split is ONLY for emulating single coil tone from humbuckers, not for general tone shaping
+- Examples: Original Strat (single coils) → Your Les Paul (humbuckers) = use coil-split
+- Examples: Original Les Paul (humbuckers) → Your Les Paul (humbuckers) = NO coil-split
+
 What to consider (qualitative, flexible)
-- Pickup/output + position differences (HB↔SC, P90 ≈ mid; preserve pickup POSITION if possible; use coil-split only when emulating SC).
+- Pickup/output + position differences (HB↔SC, P90 ≈ mid; preserve pickup POSITION if possible).
 - Guitar construction/scale (LP/mahogany = thicker/darker; Strat/long scale = brighter/snappier).
 - Amp family voicing translation (Fender scooped ↔ Marshall/Vox mid-forward; modern high-gain ↔ classic crunch).
 - Presence vs treble synergy (no presence → subtle treble compensation; if harsh and presence exists → reduce presence before treble).
@@ -127,7 +140,7 @@ Explanations: list only changes you actually made and the reason for each (e.g.,
 Also include \`technique_notes\` (3–5 concise bullets) that repeat or refine the guitarist-only facts from \`originalTechnique\`, adapted to the player's rig (e.g., preserve "fingerstyle, no pick"; note pickup selector position). No advice language, no bandmates.
 
 OUTPUT fields:
-- pickup_choice: specific pickup selector position (e.g., "Bridge pickup", "Neck pickup", "Bridge + Neck", "Middle pickup", "Bridge + Middle", "Neck + Middle", "All three pickups", "Coil-split bridge", "Coil-split neck"). Focus on the pickup selector position, not playing technique. If coil-split is available, specify whether to use it.
+- pickup_choice: specific pickup selector position (e.g., "Bridge pickup", "Neck pickup", "Bridge + Neck", "Middle pickup", "Bridge + Middle", "Neck + Middle", "All three pickups", "Coil-split bridge", "Coil-split neck"). Focus on the pickup selector position, not playing technique. Only use coil-split when emulating single coil from humbuckers.
 - amp_settings: only include knobs the player actually has; integers 0–10.
 - guitar_knob_tweaks: volume/tone guidance (e.g., "vol ~8 for edge-of-breakup").
 - playing_tips: 3–5 specific playing technique tips based on the original guitarist's style for this song/part (e.g., "Use palm muting for tight rhythm", "Pick near the bridge for brightness", "Alternate pick for fast runs", "Use hybrid picking for complex parts").
@@ -184,17 +197,30 @@ Return ONLY valid JSON with this structure:
       return Math.max(0, Math.min(10, Math.round(Number(gain))))
     }
 
-    // Post-processing: enforce clean tone constraint
+    // Post-processing: enforce clean tone constraint with section profile
     const originalGain = parseOriginalGain(body.original.settings)
     console.log(`Original gain: ${originalGain}, Original settings:`, body.original.settings)
+    console.log(`Section profile:`, body.originalSectionProfile)
     
-    if (originalGain === 0) {
-      console.log(`Original gain is 0 (clean) - forcing adapted gain to 0`)
+    // Robust numeric parse for original gain, treating "0(clean)" as 0
+    const og = parseFloat(String(body.original.settings?.gain).replace(/[^0-9.]/g,'') || 'NaN')
+    const isZero = Number.isFinite(og) && og === 0
+    const isClean = 
+      (body.originalSectionProfile?.distortion === 'clean') ||
+      (body.originalSectionProfile?.confidence && body.originalSectionProfile.confidence > 0.7 && 
+       body.originalSectionProfile.evidence_phrases?.some(phrase => /clean|no.*distortion|no.*overdrive/i.test(phrase)))
+    
+    console.log(`Gain analysis: isZero=${isZero}, isClean=${isClean}, section_profile=${body.originalSectionProfile?.distortion}`)
+    
+    if (isZero && isClean) {
+      console.log(`Original gain is 0 AND section is clean - forcing adapted gain to 0`)
       if (!adaptResult.amp_settings) {
         adaptResult.amp_settings = { gain: 0, bass: 5, mid: 5, treble: 5 }
       } else {
         adaptResult.amp_settings.gain = 0
       }
+    } else if (isZero && !isClean) {
+      console.log(`Original gain is 0 but section is NOT clean - allowing gear-based adaptation`)
     } else {
       console.log(`Original gain is ${originalGain} - allowing gear-based adaptation`)
     }
@@ -299,6 +325,101 @@ Return ONLY valid JSON with this structure:
           delete adaptResult.amp_settings.reverb
         }
       }
+    }
+
+    // Post-processing: enforce coil-split rules
+    if (adaptResult.pickup_choice) {
+      const originalPickups = body.original.gear.pickups.toLowerCase()
+      const playerGuitar = body.guitarLabel.toLowerCase()
+      
+             // Check if both guitars have humbuckers
+       const originalHasHumbuckers = originalPickups.includes('humbucker') || 
+                                    originalPickups.includes('paf') || 
+                                    originalPickups.includes('les paul') ||
+                                    originalPickups.includes('lp') ||
+                                    originalPickups.includes('les-paul')
+       
+       const playerHasHumbuckers = playerGuitar.includes('les paul') || 
+                                  playerGuitar.includes('lp') || 
+                                  playerGuitar.includes('humbucker') ||
+                                  playerGuitar.includes('les-paul')
+      
+             // Check if both guitars have single coils
+       const originalHasSingleCoils = originalPickups.includes('single coil') || 
+                                     originalPickups.includes('single-coil') ||
+                                     originalPickups.includes('strat') || 
+                                     originalPickups.includes('telecaster') ||
+                                     originalPickups.includes('tele') ||
+                                     originalPickups.includes('fender')
+       
+       const playerHasSingleCoils = playerGuitar.includes('strat') || 
+                                   playerGuitar.includes('telecaster') || 
+                                   playerGuitar.includes('tele') ||
+                                   playerGuitar.includes('single coil') ||
+                                   playerGuitar.includes('single-coil') ||
+                                   playerGuitar.includes('fender')
+      
+      console.log(`Coil-split analysis:`, {
+        originalPickups,
+        playerGuitar,
+        originalHasHumbuckers,
+        playerHasHumbuckers,
+        originalHasSingleCoils,
+        playerHasSingleCoils,
+        currentPickupChoice: adaptResult.pickup_choice
+      })
+      
+      // Rule: If both have humbuckers, remove coil-split
+      if (originalHasHumbuckers && playerHasHumbuckers) {
+        if (adaptResult.pickup_choice.toLowerCase().includes('coil-split')) {
+          console.log(`Both guitars have humbuckers - removing coil-split recommendation`)
+          adaptResult.pickup_choice = adaptResult.pickup_choice
+            .replace(/coil-split bridge/i, 'Bridge pickup')
+            .replace(/coil-split neck/i, 'Neck pickup')
+            .replace(/coil-split/i, 'Bridge pickup')
+        }
+      }
+      
+      // Rule: If both have single coils, remove coil-split
+      if (originalHasSingleCoils && playerHasSingleCoils) {
+        if (adaptResult.pickup_choice.toLowerCase().includes('coil-split')) {
+          console.log(`Both guitars have single coils - removing coil-split recommendation`)
+          adaptResult.pickup_choice = adaptResult.pickup_choice
+            .replace(/coil-split bridge/i, 'Bridge pickup')
+            .replace(/coil-split neck/i, 'Neck pickup')
+            .replace(/coil-split/i, 'Bridge pickup')
+        }
+      }
+      
+             // Rule: Only allow coil-split when going from single coil to humbucker
+       if (!originalHasSingleCoils || !playerHasHumbuckers) {
+         if (adaptResult.pickup_choice.toLowerCase().includes('coil-split')) {
+           console.log(`Invalid coil-split scenario - removing coil-split recommendation`)
+           adaptResult.pickup_choice = adaptResult.pickup_choice
+             .replace(/coil-split bridge/i, 'Bridge pickup')
+             .replace(/coil-split neck/i, 'Neck pickup')
+             .replace(/coil-split/i, 'Bridge pickup')
+         }
+       }
+       
+       // Rule: Force coil-split when going from single coil to humbucker (if coil-split is available)
+       if (originalHasSingleCoils && playerHasHumbuckers && body.features?.coilSplit) {
+         const currentChoice = adaptResult.pickup_choice.toLowerCase()
+         if (!currentChoice.includes('coil-split')) {
+           console.log(`Original has single coils, player has humbuckers, coil-split available - forcing coil-split`)
+           // Determine which pickup to coil-split based on the current choice
+           if (currentChoice.includes('bridge')) {
+             adaptResult.pickup_choice = 'Coil-split bridge'
+           } else if (currentChoice.includes('neck')) {
+             adaptResult.pickup_choice = 'Coil-split neck'
+           } else {
+             // Default to bridge coil-split for single coil emulation
+             adaptResult.pickup_choice = 'Coil-split bridge'
+           }
+         }
+       }
+      
+      console.log(`Final pickup choice after coil-split rules:`, adaptResult.pickup_choice)
     }
 
     // Ensure confidence is between 0-1

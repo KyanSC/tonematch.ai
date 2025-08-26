@@ -31,6 +31,12 @@ interface Citation {
   name?: string
 }
 
+interface SectionProfile {
+  distortion: "clean" | "edge" | "crunch" | "high-gain"
+  confidence: number
+  evidence_phrases?: string[]
+}
+
 interface ResearchResult {
   original_gear: OriginalGear
   settings: AmpSettings
@@ -43,6 +49,7 @@ interface ResearchResult {
     volume: string;
     tone: string;
   };
+  section_profile: SectionProfile
 }
 
 interface ResearchResponse {
@@ -165,6 +172,7 @@ export default function AppPage() {
             settings: researchData.settings,
             guitar_knob_settings: researchData.guitar_knob_settings
           },
+          originalSectionProfile: researchData.section_profile,
           guitarLabel,
           ampLabel,
           features,

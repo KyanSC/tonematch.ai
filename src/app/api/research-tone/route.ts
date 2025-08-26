@@ -35,6 +35,12 @@ interface Citation {
   url: string
 }
 
+interface SectionProfile {
+  distortion: "clean" | "edge" | "crunch" | "high-gain"
+  confidence: number
+  evidence_phrases?: string[]
+}
+
 interface ResearchResult {
   original_gear: {
     guitar: string
@@ -54,6 +60,7 @@ interface ResearchResult {
     volume: string
     tone: string
   }
+  section_profile: SectionProfile
   citations: Array<{
     title: string
     url: string
@@ -183,6 +190,11 @@ GAIN RULES:
 - If the tone is distorted, set gain to 3-10
 - Always prioritize clean tone detection and set gain to 0 when appropriate
 
+SECTION CLASSIFICATION:
+Classify the requested SECTION's distortion level as one of:
+- "clean" | "edge" | "crunch" | "high-gain"
+Only mark "clean" if at least one source explicitly describes a clean/no-drive guitar sound for THIS section (riff vs solo). Otherwise choose edge/crunch/high-gain.
+
 CRITICAL: You MUST return ONLY a valid JSON object. Do not include any text before or after the JSON. Do not use markdown formatting. The response must start with { and end with }.
 
 IMPORTANT: Use the exact song and artist names as found in your research. If the user made typos, correct them based on the actual song/artist names found online.
@@ -206,6 +218,11 @@ Return the information in this EXACT JSON format:
   "guitar_knob_settings": {
     "volume": "string (e.g., '7', '8-9', 'full')",
     "tone": "string (e.g., '6', '7-8', 'full')"
+  },
+  "section_profile": {
+    "distortion": "clean" | "edge" | "crunch" | "high-gain",
+    "confidence": number,
+    "evidence_phrases": ["short quoted phrases from sources that indicate clean vs distorted"]
   },
   "citations": [
     {
@@ -309,6 +326,11 @@ Return the information in this EXACT JSON format:
               presence: presenceMatch ? (presenceMatch[1].toLowerCase().includes('not') ? undefined : 5) : 5,
               reverb: reverbMatch ? parseInt(reverbMatch[1]) : 0
             },
+            section_profile: {
+              distortion: gainMatch && parseInt(gainMatch[1]) <= 2 ? "clean" : "crunch",
+              confidence: 0.6,
+              evidence_phrases: ["Fallback classification based on gain settings"]
+            },
             citations,
             confidence,
             warnings,
@@ -356,7 +378,12 @@ GAIN RULES:
 - If the tone is distorted, set gain to 3-10
 - Always prioritize clean tone detection and set gain to 0 when appropriate
 
-Return ONLY a valid JSON object with the following structure: {"original_gear": {"guitar": "string", "pickups": "string", "amp": "string", "notes": "string?"}, "settings": {"gain": number?, "bass": number?, "mid": number?, "treble": number?, "presence": number?, "reverb": number?}, "guitar_knob_settings": {"volume": "string (e.g., '7', '8-9')", "tone": "string (e.g., '6', '7-8')"}, "citations": [{"title": "string", "url": "string"}], "confidence": number, "warnings": ["string"], "song": "string", "artist": "string"}. Do not include any text before or after the JSON.`
+SECTION CLASSIFICATION:
+Classify the requested SECTION's distortion level as one of:
+- "clean" | "edge" | "crunch" | "high-gain"
+Only mark "clean" if you have strong evidence this section uses a clean/no-drive guitar sound. Otherwise choose edge/crunch/high-gain based on the musical style and era.
+
+Return ONLY a valid JSON object with the following structure: {"original_gear": {"guitar": "string", "pickups": "string", "amp": "string", "notes": "string?"}, "settings": {"gain": number?, "bass": number?, "mid": number?, "treble": number?, "presence": number?, "reverb": number?}, "guitar_knob_settings": {"volume": "string (e.g., '7', '8-9')", "tone": "string (e.g., '6', '7-8')"}, "section_profile": {"distortion": "clean" | "edge" | "crunch" | "high-gain", "confidence": number, "evidence_phrases": ["string"]}, "citations": [{"title": "string", "url": "string"}], "confidence": number, "warnings": ["string"], "song": "string", "artist": "string"}. Do not include any text before or after the JSON.`
             },
             {
               role: 'user',
