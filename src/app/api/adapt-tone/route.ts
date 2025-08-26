@@ -115,7 +115,8 @@ export async function POST(request: NextRequest) {
           content: `You are a tone adaptation expert. Given (A) ORIGINAL tone + technique for a specific song section and (B) the PLAYER's gear, output adapted settings that compensate for differences only where needed.
 
 Non-negotiables
-- Do NOT mirror the original numbers. Compute changes from concrete deltas (pickup type/output/position, guitar build/scale, amp family voicing, available controls). If no delta warrants a change for a knob, KEEP the original numeric value.
+- ALWAYS adapt settings based on gear differences. Do NOT simply copy original numbers.
+- Compute changes from concrete deltas: pickup type/output/position, guitar build/scale, amp family voicing, available controls.
 - Output ONLY JSON matching our schema. Include ONLY knobs the player actually has (gain/bass/mid/treble; presence only if available; reverb only if available). Omit unknowns instead of guessing. Integers 0–10.
 - Only set gain=0 if ORIGINAL reported gain=0 AND originalSectionProfile.distortion === "clean". Otherwise, compute gain normally from gear deltas.
 - Technique fidelity: you will receive \`originalTechnique\` (bullets from research). Treat these as ground truth for how the guitarist plays this section (e.g., "fingerstyle, no pick", "Strat position 2/4"). **Never contradict them.**
@@ -134,6 +135,14 @@ What to consider (qualitative, flexible)
 - Amp family voicing translation (Fender scooped ↔ Marshall/Vox mid-forward; modern high-gain ↔ classic crunch).
 - Presence vs treble synergy (no presence → subtle treble compensation; if harsh and presence exists → reduce presence before treble).
 - Reverb: prefer preserving the original value; change only if your rig translation clearly requires it, and state why.
+
+ADAPTATION RULES:
+- Single coil → Humbucker: typically reduce gain by 1, increase treble by 1-2, adjust mids by ±1
+- Humbucker → Single coil: typically increase gain by 1, reduce treble by 1-2, adjust mids by ±1
+- Fender → Marshall/Vox: typically increase mids by 1-2, reduce bass by 1
+- Marshall/Vox → Fender: typically reduce mids by 1-2, increase bass by 1
+- GAIN CONSTRAINT: Never change gain by more than ±1 from the original value
+- Always consider the specific gear differences and adapt accordingly.
 
 Explanations: list only changes you actually made and the reason for each (e.g., "HB→SC target: −2 gain, +1 treble", "Fender→mid-forward: +2 mids, −1 bass"). If a control was kept the same for a reason, include a short bullet like "kept bass to avoid flub on 4x12".
 
@@ -300,13 +309,30 @@ Return ONLY valid JSON with this structure:
       console.log(`Filtered technique_notes:`, adaptResult.technique_notes)
     }
 
-    // Validate and clamp numbers to 0-10, round to integers
-    if (adaptResult.amp_settings) {
-      const clamp = (value: number) => Math.max(0, Math.min(10, Math.round(value)))
-      adaptResult.amp_settings.gain = clamp(adaptResult.amp_settings.gain)
-      adaptResult.amp_settings.bass = clamp(adaptResult.amp_settings.bass)
-      adaptResult.amp_settings.mid = clamp(adaptResult.amp_settings.mid)
-      adaptResult.amp_settings.treble = clamp(adaptResult.amp_settings.treble)
+         // Validate and clamp numbers to 0-10, round to integers
+     if (adaptResult.amp_settings) {
+       const clamp = (value: number) => Math.max(0, Math.min(10, Math.round(value)))
+       
+       // Enforce ±1 gain constraint
+       const originalGain = parseOriginalGain(body.original.settings)
+       const proposedGain = clamp(adaptResult.amp_settings.gain)
+       const gainDiff = proposedGain - originalGain
+       
+       if (Math.abs(gainDiff) > 1) {
+         console.log(`Gain change too large: ${originalGain} → ${proposedGain} (diff: ${gainDiff}). Constraining to ±1.`)
+         if (gainDiff > 0) {
+           adaptResult.amp_settings.gain = clamp(originalGain + 1)
+         } else {
+           adaptResult.amp_settings.gain = clamp(originalGain - 1)
+         }
+         console.log(`Constrained gain to: ${adaptResult.amp_settings.gain}`)
+       } else {
+         adaptResult.amp_settings.gain = proposedGain
+       }
+       
+       adaptResult.amp_settings.bass = clamp(adaptResult.amp_settings.bass)
+       adaptResult.amp_settings.mid = clamp(adaptResult.amp_settings.mid)
+       adaptResult.amp_settings.treble = clamp(adaptResult.amp_settings.treble)
       
       // Only include presence if allowed by features
       if (adaptResult.amp_settings.presence !== undefined) {
