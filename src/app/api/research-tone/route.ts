@@ -258,6 +258,32 @@ Return the information in this EXACT JSON format:
         // Debug: Log the parsed result
         console.log('Parsed research result:', JSON.stringify(researchResult, null, 2))
         
+        // Post-process: Validate and clamp amp settings to 0-10 range
+        if (researchResult.settings) {
+          const clampToRange = (value: number): number => Math.max(0, Math.min(10, Math.round(value)))
+          
+          if (typeof researchResult.settings.gain === 'number') {
+            researchResult.settings.gain = clampToRange(researchResult.settings.gain)
+          }
+          if (typeof researchResult.settings.bass === 'number') {
+            researchResult.settings.bass = clampToRange(researchResult.settings.bass)
+          }
+          if (typeof researchResult.settings.mid === 'number') {
+            researchResult.settings.mid = clampToRange(researchResult.settings.mid)
+          }
+          if (typeof researchResult.settings.treble === 'number') {
+            researchResult.settings.treble = clampToRange(researchResult.settings.treble)
+          }
+          if (typeof researchResult.settings.presence === 'number') {
+            researchResult.settings.presence = clampToRange(researchResult.settings.presence)
+          }
+          if (typeof researchResult.settings.reverb === 'number') {
+            researchResult.settings.reverb = clampToRange(researchResult.settings.reverb)
+          }
+        }
+        
+        console.log('✅ Post-processed amp settings to 0-10 range')
+        
       } catch (parseError) {
         console.error('JSON parse error:', parseError)
         console.error('Raw output text:', outputText)
@@ -310,6 +336,9 @@ Return the information in this EXACT JSON format:
             })
           }
           
+          // Helper function to clamp values to 0-10 range
+          const clampToRange = (value: number): number => Math.max(0, Math.min(10, value))
+          
           // Build the result object
           researchResult = {
             original_gear: {
@@ -319,12 +348,12 @@ Return the information in this EXACT JSON format:
               notes: notesMatch ? notesMatch[1].trim() : ''
             },
             settings: {
-              gain: gainMatch ? parseInt(gainMatch[1]) : 0,
-              bass: bassMatch ? parseInt(bassMatch[1]) : 5,
-              mid: midMatch ? parseInt(midMatch[1]) : 5,
-              treble: trebleMatch ? parseInt(trebleMatch[1]) : 5,
-              presence: presenceMatch ? (presenceMatch[1].toLowerCase().includes('not') ? undefined : 5) : 5,
-              reverb: reverbMatch ? parseInt(reverbMatch[1]) : 0
+              gain: gainMatch ? clampToRange(parseInt(gainMatch[1])) : 0,
+              bass: bassMatch ? clampToRange(parseInt(bassMatch[1])) : 5,
+              mid: midMatch ? clampToRange(parseInt(midMatch[1])) : 5,
+              treble: trebleMatch ? clampToRange(parseInt(trebleMatch[1])) : 5,
+              presence: presenceMatch ? (presenceMatch[1].toLowerCase().includes('not') ? undefined : clampToRange(5)) : 5,
+              reverb: reverbMatch ? clampToRange(parseInt(reverbMatch[1])) : 0
             },
             section_profile: {
               distortion: gainMatch && parseInt(gainMatch[1]) <= 2 ? "clean" : "crunch",
