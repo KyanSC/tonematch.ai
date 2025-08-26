@@ -1,8 +1,8 @@
-# ToneMatch.ai 🎸
+# ToneAdapt (beta) 🎸
 
 **AI-powered guitar tone research and adaptation platform**
 
-ToneMatch.ai helps guitarists find the exact amp settings and gear configurations used in their favorite songs, then adapts those settings to work with their own equipment.
+ToneAdapt (beta) helps guitarists find the exact amp settings and gear configurations used in their favorite songs, then adapts those settings to work with their own equipment.
 
 ## ✨ Features
 

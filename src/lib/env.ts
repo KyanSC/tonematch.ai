@@ -1,3 +1,5 @@
+import 'server-only'
+
 /**
  * Safe environment variable reader
  */
@@ -20,6 +22,9 @@ export function getSupabaseUrl(): string | undefined {
 }
 
 export function getSupabaseServiceRoleKey(): string | undefined {
+  if (typeof window !== 'undefined') {
+    throw new Error('Attempted to read server env from the browser')
+  }
   return getEnvVar('SUPABASE_SERVICE_ROLE_KEY')
 }
 

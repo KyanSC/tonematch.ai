@@ -10,7 +10,7 @@ export function Navbar() {
             href="/" 
             className="text-2xl font-bold gradient-text hover:scale-105 transition-transform duration-200"
           >
-            ToneMatch.ai
+            ToneAdapt (beta)
           </Link>
 
           {/* Center - Navigation */}

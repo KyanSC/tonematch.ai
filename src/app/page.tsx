@@ -88,7 +88,7 @@ export default function HomePage() {
               Join thousands of guitarists who are already matching legendary tones with their gear.
             </p>
             <Link href="/app">
-              <Button size="lg" className="text-lg px-8 py-4 bg-white text-blue-600 hover:bg-gray-100 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 magnetic glow-on-hover">
+              <Button size="lg" className="text-lg px-8 py-4 !bg-white !text-blue-600 hover:!bg-gray-50 hover:!text-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 magnetic glow-on-hover font-semibold">
                 Start Your Tone Journey
               </Button>
             </Link>

@@ -10,20 +10,20 @@ import { ErrorBoundary } from '@/components/error-boundary'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'ToneMatch.ai',
+  title: 'ToneAdapt (beta)',
   description: 'Research and adapt any guitar tone to your gear',
   metadataBase: new URL('https://tonematch-ai.vercel.app'),
   openGraph: {
-    title: 'ToneMatch.ai',
+    title: 'ToneAdapt (beta)',
     description: 'Research and adapt any guitar tone to your gear',
     url: 'https://tonematch-ai.vercel.app',
-    siteName: 'ToneMatch.ai',
+    siteName: 'ToneAdapt (beta)',
     images: [
       {
         url: '/opengraph-image.png',
         width: 1200,
         height: 630,
-        alt: 'ToneMatch.ai - AI-Powered Guitar Tone Matching',
+        alt: 'ToneAdapt (beta) - AI-Powered Guitar Tone Matching',
       },
     ],
     locale: 'en_US',
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ToneMatch.ai',
+    title: 'ToneAdapt (beta)',
     description: 'Research and adapt any guitar tone to your gear',
     images: ['/opengraph-image.png'],
     creator: '@tonematch_ai',
