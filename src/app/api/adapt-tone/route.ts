@@ -58,6 +58,59 @@ interface AdaptToneResponse {
   confidence: number
 }
 
+// Helper function to determine if gain change is justified by gear differences
+function analyzeGainJustification(originalGear: any, playerGuitar: string, playerAmp: string): boolean {
+  const originalGuitar = originalGear.guitar.toLowerCase()
+  const originalPickups = originalGear.pickups.toLowerCase()
+  const originalAmp = originalGear.amp.toLowerCase()
+  
+  // Check for significant pickup output differences
+  const hasHighOutputOriginal = /hot|high|active|emg|duncan|seymour|distortion|overdrive|modern/i.test(originalPickups)
+  const hasLowOutputOriginal = /vintage|low|paf|classic|traditional|alnico|p90/i.test(originalPickups)
+  
+  const hasHighOutputPlayer = /hot|high|active|emg|duncan|seymour|distortion|overdrive|modern/i.test(playerGuitar)
+  const hasLowOutputPlayer = /vintage|low|paf|classic|traditional|alnico|p90/i.test(playerGuitar)
+  
+  // Check for specific guitar model differences
+  const isStratOriginal = /strat|stratocaster|fender/i.test(originalGuitar)
+  const isLesPaulOriginal = /les.?paul|lp|gibson/i.test(originalGuitar)
+  const isStratPlayer = /strat|stratocaster|fender/i.test(playerGuitar)
+  const isLesPaulPlayer = /les.?paul|lp|gibson/i.test(playerGuitar)
+  
+  // If both are same type, less likely to need gain change
+  const sameGuitarType = (isStratOriginal && isStratPlayer) || (isLesPaulOriginal && isLesPaulPlayer)
+  
+  // Check for significant amp differences
+  const hasHighGainOriginal = /high.?gain|metal|distortion|overdrive|crunch/i.test(originalAmp)
+  const hasLowGainOriginal = /clean|vintage|classic|low.?gain/i.test(originalAmp)
+  
+  const hasHighGainPlayer = /high.?gain|metal|distortion|overdrive|crunch/i.test(playerAmp)
+  const hasLowGainPlayer = /clean|vintage|classic|low.?gain/i.test(playerAmp)
+  
+  // Only justify gain change if there's a substantial output difference
+  const pickupOutputDiff = (hasHighOutputOriginal && hasLowOutputPlayer) || (hasLowOutputOriginal && hasHighOutputPlayer)
+  const ampGainDiff = (hasHighGainOriginal && hasLowGainPlayer) || (hasLowGainOriginal && hasHighGainPlayer)
+  
+  // If both guitars are same type, require stronger evidence for gain change
+  const requiresStrongerEvidence = sameGuitarType
+  
+  console.log(`Gain justification analysis:`, {
+    originalGuitar,
+    originalPickups,
+    originalAmp,
+    playerGuitar,
+    playerAmp,
+    pickupOutputDiff,
+    ampGainDiff,
+    sameGuitarType,
+    requiresStrongerEvidence,
+    shouldChangeGain: pickupOutputDiff || ampGainDiff
+  })
+  
+  // Only change gain if there's a clear, substantial difference
+  return pickupOutputDiff || ampGainDiff
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Parse and validate request body
@@ -118,7 +171,8 @@ Non-negotiables
 - ALWAYS adapt settings based on gear differences. Do NOT simply copy original numbers.
 - Compute changes from concrete deltas: pickup type/output/position, guitar build/scale, amp family voicing, available controls.
 - Output ONLY JSON matching our schema. Include ONLY knobs the player actually has (gain/bass/mid/treble; presence only if available; reverb only if available). Omit unknowns instead of guessing. Integers 0–10.
-- Only set gain=0 if ORIGINAL reported gain=0 AND originalSectionProfile.distortion === "clean". Otherwise, compute gain normally from gear deltas.
+- Only set gain=0 if ORIGINAL reported gain=0 AND originalSectionProfile.distortion === "clean". 
+- For gain changes: ONLY change gain when there's a SIGNIFICANT difference in pickup output or amp gain characteristics. If both guitars have similar output levels, keep the original gain unchanged.
 - Technique fidelity: you will receive \`originalTechnique\` (bullets from research). Treat these as ground truth for how the guitarist plays this section (e.g., "fingerstyle, no pick", "Strat position 2/4"). **Never contradict them.**
 
 COIL-SPLIT RULES (CRITICAL):
@@ -137,11 +191,13 @@ What to consider (qualitative, flexible)
 - Reverb: prefer preserving the original value; change only if your rig translation clearly requires it, and state why.
 
 ADAPTATION RULES:
-- Single coil → Humbucker: typically reduce gain by 1, increase treble by 1-2, adjust mids by ±1
-- Humbucker → Single coil: typically increase gain by 1, reduce treble by 1-2, adjust mids by ±1
+- GAIN ADAPTATION: Only change gain when there's a SIGNIFICANT gear difference that actually affects gain requirements
+- Single coil → Humbucker: ONLY change gain if output difference is substantial (e.g., vintage Strat → hot humbucker = +1 gain, hot Strat → vintage humbucker = -1 gain)
+- Humbucker → Single coil: ONLY change gain if output difference is substantial (e.g., hot humbucker → vintage Strat = -1 gain, vintage humbucker → hot Strat = +1 gain)
+- If both guitars have similar output levels, KEEP gain the same
 - Fender → Marshall/Vox: typically increase mids by 1-2, reduce bass by 1
 - Marshall/Vox → Fender: typically reduce mids by 1-2, increase bass by 1
-- GAIN CONSTRAINT: Never change gain by more than ±1 from the original value
+- GAIN CONSTRAINT: Only change gain by ±1 when gear differences actually justify it. If unsure, keep original gain.
 - Always consider the specific gear differences and adapt accordingly.
 
 Explanations: list only changes you actually made and the reason for each (e.g., "HB→SC target: −2 gain, +1 treble", "Fender→mid-forward: +2 mids, −1 bass"). If a control was kept the same for a reason, include a short bullet like "kept bass to avoid flub on 4x12".
@@ -176,7 +232,12 @@ Return ONLY valid JSON with this structure:
   "playing_tips": ["string"],
   "technique_notes": ["string"],
   "confidence": number
-}`
+}
+
+IMPORTANT: Only change gain if there's a substantial difference in pickup output or amp gain characteristics. Examples:
+- Vintage Strat (low output) → Hot humbucker (high output) = +1 gain
+- Hot humbucker (high output) → Vintage Strat (low output) = -1 gain  
+- Same output levels = keep original gain unchanged`
         }
       ],
       response_format: { type: 'json_object' },
@@ -313,11 +374,19 @@ Return ONLY valid JSON with this structure:
      if (adaptResult.amp_settings) {
        const clamp = (value: number) => Math.max(0, Math.min(10, Math.round(value)))
        
-       // Enforce ±1 gain constraint
-       const originalGain = parseOriginalGain(body.original.settings)
-       const proposedGain = clamp(adaptResult.amp_settings.gain)
+            // Intelligent gain adaptation based on actual gear differences
+     const originalGain = parseOriginalGain(body.original.settings)
+     const proposedGain = clamp(adaptResult.amp_settings.gain)
+     
+     // Analyze if gain change is actually justified by gear differences
+     const shouldChangeGain = analyzeGainJustification(body.original.gear, body.guitarLabel, body.ampLabel)
+     
+     if (!shouldChangeGain) {
+       console.log(`Gear differences don't justify gain change - keeping original gain: ${originalGain}`)
+       adaptResult.amp_settings.gain = originalGain
+     } else {
+       // Only allow ±1 change when justified
        const gainDiff = proposedGain - originalGain
-       
        if (Math.abs(gainDiff) > 1) {
          console.log(`Gain change too large: ${originalGain} → ${proposedGain} (diff: ${gainDiff}). Constraining to ±1.`)
          if (gainDiff > 0) {
@@ -329,6 +398,7 @@ Return ONLY valid JSON with this structure:
        } else {
          adaptResult.amp_settings.gain = proposedGain
        }
+     }
        
        adaptResult.amp_settings.bass = clamp(adaptResult.amp_settings.bass)
        adaptResult.amp_settings.mid = clamp(adaptResult.amp_settings.mid)
