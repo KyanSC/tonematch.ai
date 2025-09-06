@@ -9,56 +9,32 @@ import { ErrorBoundary } from '@/components/error-boundary'
 
 const inter = Inter({ subsets: ['latin'] })
 
-const title = 'ToneAdapt — Match Any Guitar Tone to Your Gear'
-const description = 'AI-powered guitar tone adaptation. Research the original tone for any song and auto-adapt amp, EQ, and pedal settings to your exact guitar and rig.'
-const url = 'https://toneadapt.com'
-
 export const metadata: Metadata = {
-  metadataBase: new URL(url),
-  title,
-  description,
-  keywords: [
-    'guitar tone',
-    'tone matching',
-    'tone adaptation',
-    'amp settings',
-    'pedal settings',
-    'AI guitar',
-    'ToneAdapt',
-    'guitar tone research',
-    'tone matching app',
-    'guitar amp settings',
-    'tone adaptation tool',
-    'guitar tone analyzer',
-    'AI tone matching',
-    'guitar rig settings',
-    'tone matching software'
-  ],
-  alternates: { 
-    canonical: url 
-  },
+  title: 'ToneAdapt (beta)',
+  description: 'Research and adapt any guitar tone to your gear',
+  metadataBase: new URL('https://tonematch-ai.vercel.app'),
   openGraph: {
-    type: 'website',
-    url,
-    title,
-    description,
-    siteName: 'ToneAdapt',
+    title: 'ToneAdapt (beta)',
+    description: 'Research and adapt any guitar tone to your gear',
+    url: 'https://tonematch-ai.vercel.app',
+    siteName: 'ToneAdapt (beta)',
     images: [
       {
         url: '/opengraph-image.png',
         width: 1200,
         height: 630,
-        alt: 'ToneAdapt - AI-Powered Guitar Tone Matching',
+        alt: 'ToneAdapt (beta) - AI-Powered Guitar Tone Matching',
       },
     ],
     locale: 'en_US',
+    type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    site: '@toneadapt',
-    title,
-    description,
+    title: 'ToneAdapt (beta)',
+    description: 'Research and adapt any guitar tone to your gear',
     images: ['/opengraph-image.png'],
+    creator: '@tonematch_ai',
   },
   robots: {
     index: true,
@@ -71,9 +47,7 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  verification: {
-    google: 'C30XoB37Ha7xdE6Yup1MNvwuSmpZ_3lkGxoOVqt5qz4',
-  },
+  // Ensure CSS loads immediately
   other: {
     'next-head-count': '0',
   },
@@ -84,48 +58,11 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'WebApplication',
-    name: 'ToneAdapt',
-    url: url,
-    description: 'AI-powered guitar tone adaptation matching legendary tones to your exact gear.',
-    applicationCategory: 'MusicApplication',
-    operatingSystem: 'Web',
-    offers: { 
-      '@type': 'Offer', 
-      price: '0', 
-      priceCurrency: 'USD' 
-    },
-    author: {
-      '@type': 'Organization',
-      name: 'ToneAdapt',
-      url: url
-    },
-    featureList: [
-      'AI-powered tone research',
-      'Gear-specific tone adaptation',
-      'Real-time web search integration',
-      'Comprehensive amp settings',
-      'Guitar knob recommendations',
-      'Confidence scoring'
-    ],
-    screenshot: `${url}/opengraph-image.png`,
-    softwareVersion: '1.0.0',
-    datePublished: '2024-01-01',
-    dateModified: new Date().toISOString().split('T')[0]
-  }
-
   return (
     <html lang="en">
       <head>
         {/* Preload critical CSS */}
         <link rel="preload" href="/_next/static/css/app/layout.css" as="style" />
-        {/* JSON-LD Structured Data */}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
         <style dangerouslySetInnerHTML={{
           __html: `
             /* Critical CSS fallback to prevent FOUC */
