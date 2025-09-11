@@ -213,7 +213,7 @@ export default function AppPage() {
     <div className="container mx-auto px-4 py-8 max-w-[900px]">
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold gradient-text mb-2">ToneMatch.ai</h1>
+        <h1 className="text-3xl font-bold gradient-text mb-2">toneadapt</h1>
         <p className="text-gray-600">Research and adapt any guitar tone to your gear</p>
       </div>
 
